@@ -60,7 +60,7 @@ export default function Home() {
               </LoadingButton>
 
               <LoadingButton
-                href="/dashboard"
+                href="/dashboard/overview"
                 className="group overflow-hidden text-white active:scale-95 rounded-xl
                shadow-[0_6px_20px_rgba(238,44,115,0.30)]
                bg-[conic-gradient(from_240deg_at_50%_50%,#EE2C73_0deg,#FFCD05_120deg,#EE2C73_240deg,#FFCD05_360deg)] animate-slow-pan"

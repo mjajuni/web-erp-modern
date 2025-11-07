@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import LoadingButton from "@/components/LoadingButton";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import MagicBento from "@/components/MagicBento";
+import ShinyText from "@/components/ShinyText";
 import TextType from "@/components/TextType";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
@@ -37,9 +38,12 @@ export default function Home() {
                 ER
               </div>
               <div className="leading-none">
-                <p className="text-base font-semibold text-[#272465]">
-                  ERP Console
-                </p>
+                <ShinyText
+                  text="ERP Console"
+                  disabled={false}
+                  speed={3}
+                  className=" text-base font-semibold text-[#272465]"
+                />
                 <p className="mt-1 text-[11px] text-zinc-500">
                   Enterprise Resource Platform
                 </p>

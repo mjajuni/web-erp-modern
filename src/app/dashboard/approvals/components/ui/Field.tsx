@@ -1,4 +1,4 @@
-function Field({
+export default function Field({
   label,
   value,
   onChange,

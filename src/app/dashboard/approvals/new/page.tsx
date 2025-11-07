@@ -1,3 +1,4 @@
+// src/app/dashboard/approvals/new/page.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,22 +9,30 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+/* =========================
+   Zod Schema & Types
+========================= */
 const FormSchema = z.object({
   Title: z.string().min(3, "Minimal 3 karakter"),
   Description: z.string().min(5, "Deskripsi terlalu singkat"),
   Currency: z.enum(["IDR", "USD"]),
   PreApprovalRef: z.string().trim().optional().nullable(),
-  Amount: z.coerce
-    .number()
-    .refine((n) => Number.isFinite(n), { message: "Nominal wajib angka" })
+  Amount: z
+    .number() // tanpa invalid_type_error
+    .refine(Number.isFinite, { message: "Nominal wajib angka" })
     .min(1, "Nominal harus > 0"),
-  CompanyID: z.coerce
-    .number()
-    .refine((n) => Number.isFinite(n), { message: "Pilih perusahaan" })
+  CompanyID: z
+    .number() // tanpa invalid_type_error
+    .refine(Number.isFinite, { message: "Pilih perusahaan" })
     .int()
     .min(1, "Wajib pilih perusahaan"),
 });
 
+type FormValues = z.infer<typeof FormSchema>;
+
+/* =========================
+   Page Component
+========================= */
 export default function PremiumRequestForm() {
   const router = useRouter();
   const [isPosting, setIsPosting] = useState(false);
@@ -32,11 +41,12 @@ export default function PremiumRequestForm() {
     text: string;
   } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [companies, setCompanies] = useState([
+
+  const [companies] = useState<Array<{ id: number; name: string }>>([
     { id: 1, name: "PT Nusantara Sejahtera" },
   ]);
 
-  const form = useForm({
+  const form = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       Title: "",
@@ -49,10 +59,10 @@ export default function PremiumRequestForm() {
     mode: "onChange",
   });
 
-  const watchCurrency = form.watch("Currency");
-  const watchAmount = form.watch("Amount");
+  const watchCurrency = form.watch("Currency"); // "IDR" | "USD"
+  const watchAmount = form.watch("Amount"); // number
 
-  const onSubmit = async (values: any) => {
+  const onSubmit = async (values: FormValues) => {
     setIsPosting(true);
     setNotice(null);
     try {
@@ -63,17 +73,25 @@ export default function PremiumRequestForm() {
         body: JSON.stringify(values),
       });
       if (!res.ok) throw new Error(await res.text());
-      form.reset();
+
+      form.reset({
+        Title: "",
+        Description: "",
+        Currency: "IDR",
+        PreApprovalRef: "",
+        Amount: 0,
+        CompanyID: 1,
+      });
+
       setNotice({
         type: "success",
         text: "Request berhasil dikirim ke backend.",
       });
-      setTimeout(() => router.push("/dashboard/approvals"), 200); // redirect ke menu approvals
-    } catch (e: any) {
-      setNotice({
-        type: "error",
-        text: e?.message || "Terjadi kesalahan koneksi",
-      });
+      setTimeout(() => router.push("/dashboard/approvals"), 200);
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Terjadi kesalahan koneksi";
+      setNotice({ type: "error", text: message });
     } finally {
       setIsPosting(false);
     }
@@ -100,13 +118,13 @@ export default function PremiumRequestForm() {
                   duration: 1.2,
                   ease: "easeInOut",
                 }}
-                className="h-full w-1/3 bg-gradient-to-r from-blue-400 via-blue-600 to-blue-400 opacity-80"
+                className="h-full w-1/3 bg-linear-to-r from-blue-400 via-blue-600 to-blue-400 opacity-80"
               />
             </div>
           )}
 
-          <h1 className="text-xl font-semibold mb-2">Form Permohonan</h1>
-          <p className="text-sm text-gray-500 mb-6">
+          <h1 className="mb-2 text-xl font-semibold">Form Permohonan</h1>
+          <p className="mb-6 text-sm text-gray-500">
             Lengkapi informasi di bawah ini untuk mengajukan permohonan.
           </p>
 
@@ -116,9 +134,10 @@ export default function PremiumRequestForm() {
                 <input
                   className="input-bordered border border-gray-400"
                   {...form.register("Title")}
-                  placeholder="Contoh: Pembelian Perlen"
+                  placeholder="Contoh: Pembelian Perlengkapan"
                 />
               </Field>
+
               <Field label="Pre-Approval Ref (opsional)">
                 <input
                   className="input-bordered border border-gray-400"
@@ -126,13 +145,14 @@ export default function PremiumRequestForm() {
                   placeholder="Memo-Direksi-001"
                 />
               </Field>
+
               <Field
                 label="Description"
                 className="md:col-span-2"
                 error={form.formState.errors.Description?.message}
               >
                 <textarea
-                  className="input-bordered border border-gray-400 min-h-[120px]"
+                  className="input-bordered min-h-[120px] border border-gray-400"
                   {...form.register("Description")}
                   placeholder="Jelaskan kebutuhan, vendor, dan catatan penting"
                 />
@@ -151,6 +171,7 @@ export default function PremiumRequestForm() {
                   <option value="USD">USD</option>
                 </select>
               </Field>
+
               <Field
                 label="Amount"
                 error={form.formState.errors.Amount?.message}
@@ -158,19 +179,26 @@ export default function PremiumRequestForm() {
                 <input
                   type="number"
                   className="input-bordered border border-gray-400"
+                  // penting: simpan sebagai number asli
                   {...form.register("Amount", { valueAsNumber: true })}
                   placeholder="300000"
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  {watchCurrency}: {formatCurrency(watchAmount || 0)}
+                <p className="mt-1 text-xs text-gray-500">
+                  {watchCurrency}: {formatCurrency(watchAmount ?? 0)}
                 </p>
               </Field>
-              <Field label="Company">
+
+              <Field
+                label="Company"
+                error={form.formState.errors.CompanyID?.message}
+              >
                 <select
                   className="input-bordered border border-gray-400"
                   value={form.watch("CompanyID")}
                   onChange={(e) =>
-                    form.setValue("CompanyID", Number(e.target.value))
+                    form.setValue("CompanyID", Number(e.target.value), {
+                      shouldValidate: true,
+                    })
                   }
                 >
                   {companies.map((c) => (
@@ -183,7 +211,7 @@ export default function PremiumRequestForm() {
             </div>
           </Section>
 
-          <div className="flex gap-3 mt-6">
+          <div className="mt-6 flex gap-3">
             <button
               type="button"
               onClick={() => setConfirmOpen(true)}
@@ -264,7 +292,7 @@ export default function PremiumRequestForm() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className={`mt-4 p-4 rounded-lg border ${
+                className={`mt-4 rounded-lg border p-4 ${
                   notice.type === "success"
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                     : "border-rose-200 bg-rose-50 text-rose-700"
@@ -286,7 +314,7 @@ export default function PremiumRequestForm() {
 
       <aside className="lg:sticky lg:top-6">
         <div className="rounded-2xl border bg-white p-6 shadow-md">
-          <h2 className="text-base font-semibold mb-3">Ringkasan</h2>
+          <h2 className="mb-3 text-base font-semibold">Ringkasan</h2>
           <SummaryRow label="Title" value={form.watch("Title") || "-"} />
           <SummaryRow
             label="Company"
@@ -296,10 +324,7 @@ export default function PremiumRequestForm() {
             }
           />
           <SummaryRow label="Currency" value={watchCurrency} />
-          <SummaryRow
-            label="Amount"
-            value={formatCurrency(Number(watchAmount || 0))}
-          />
+          <SummaryRow label="Amount" value={formatCurrency(watchAmount)} />
           <SummaryRow
             label="Pre-Approval"
             value={form.watch("PreApprovalRef") || "-"}
@@ -307,7 +332,7 @@ export default function PremiumRequestForm() {
         </div>
 
         <div className="mt-3 rounded-2xl border bg-white p-6 shadow-md">
-          <h3 className="text-sm font-semibold mb-2">Alur Persetujuan</h3>
+          <h3 className="mb-2 text-sm font-semibold">Alur Persetujuan</h3>
           <ul className="space-y-2 text-sm text-gray-600">
             <li>👤 Pemohon</li>
             <li>🏢 PB1</li>
@@ -316,10 +341,18 @@ export default function PremiumRequestForm() {
           </ul>
         </div>
       </aside>
+
+      {/* quick styles for demo */}
+      <style jsx global>
+        {_styles}
+      </style>
     </div>
   );
 }
 
+/* =========================
+   Small UI Helpers
+========================= */
 function Section({
   title,
   children,
@@ -329,7 +362,7 @@ function Section({
 }) {
   return (
     <div className="mb-6">
-      <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
         <FileText className="h-4 w-4" /> {title}
       </h3>
       <div className="grid gap-4">{children}</div>
@@ -350,11 +383,11 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <label className="block text-xs font-medium text-gray-700 mb-1">
+      <label className="mb-1 block text-xs font-medium text-gray-700">
         {label}
       </label>
       {children}
-      {error && <p className="text-[11px] text-rose-600 mt-1">{error}</p>}
+      {error && <p className="mt-1 text-[11px] text-rose-600">{error}</p>}
     </div>
   );
 }
@@ -374,8 +407,11 @@ function SummaryRow({
   );
 }
 
+/* =========================
+   Inline styles (Tailwind helpers)
+========================= */
 const _styles = `
-.input-bordered {@apply block w-full rounded-lg border border-gray-400 p-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition;}
-.btn-primary {@apply px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:ring-2 focus:ring-blue-300 transition disabled:opacity-50;}
-.btn-secondary {@apply px-4 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium hover:bg-gray-200 transition disabled:opacity-50;}
+.input-bordered {@apply block w-full rounded-lg border border-gray-400 p-2.5 text-sm transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200;}
+.btn-primary {@apply rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:ring-2 focus:ring-blue-300 disabled:opacity-50;}
+.btn-secondary {@apply rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-200 disabled:opacity-50;}
 `;

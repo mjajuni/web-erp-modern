@@ -39,7 +39,7 @@ export default function InvoicesPage() {
   if (!user) return <div className="p-6 text-zinc-500">Loading user...</div>;
 
   return (
-    <RBACGuard allow={["PIHAK1", "PIHAK2", "BO", "ADMIN"]}>
+    <RBACGuard allow={["PB1", "PB2", "BO", "ADMIN"]}>
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
           Invoices Tracking

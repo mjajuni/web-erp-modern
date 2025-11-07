@@ -28,7 +28,7 @@ interface ApprovalForm {
   tanggal: string; // yyyy-mm-dd
   tahap: ApprovalStage;
   status: ApprovalStatus;
-  // field yang bisa diedit pada tahap DRAFT oleh Pemohon
+  // field yang bisa diedit pada tahap DRAFT/NEEDS_REVISION oleh Pemohon
   preApprovalRef?: string;
   currency?: string;
   title?: string;
@@ -66,12 +66,8 @@ function stageFromStatus(status?: string): ApprovalStage {
   if (x === "UNDER_REVIEW_PB1") return "Pihak 1";
   if (x === "UNDER_REVIEW_PB2") return "Pihak 2";
   if (x === "UNDER_REVIEW_BO") return "BO";
-  if (
-    x === "APPROVED_FINAL" ||
-    x === "APPROVED" ||
-    x === "REJECTED" ||
-    x === "NEEDS_REVISION"
-  )
+  if (x === "NEEDS_REVISION") return "Pemohon"; // <- perbaikan utama
+  if (x === "APPROVED_FINAL" || x === "APPROVED" || x === "REJECTED")
     return "Selesai";
   return "Pemohon";
 }
@@ -79,7 +75,7 @@ function stageFromStatus(status?: string): ApprovalStage {
 function normalizeStatus(s?: string): ApprovalStatus {
   const x = String(s || "").toUpperCase();
   if (x === "DRAFT") return "Draft";
-  if (x === "NEEDS_REVISION") return "Rejected";
+  if (x === "NEEDS_REVISION") return "Rejected"; // label UI utk revisi (tetap boleh edit)
   if (x === "SUBMITTED") return "Submitted";
   if (x.startsWith("UNDER_REVIEW_")) return "In Review";
   if (x === "APPROVED_FINAL" || x === "APPROVED") return "Approved";
@@ -87,10 +83,8 @@ function normalizeStatus(s?: string): ApprovalStatus {
   return "Draft";
 }
 
-// tambahkan di atas (dekat Helpers)
 function normalizeName(s?: string) {
   const n = String(s || "").trim();
-  // hapus akhiran " pemohon" (case-insensitive)
   return n.replace(/\s+pemohon$/i, "").trim();
 }
 
@@ -103,7 +97,7 @@ function transformToApproval(r: any): ApprovalForm {
 
   const company =
     r?.CompanyName ||
-    r?.Company?.Name || // ⬅️ fallback baru
+    r?.Company?.Name ||
     r?.companyName ||
     r?.company ||
     r?.Perusahaan ||
@@ -192,7 +186,10 @@ export default function ApprovalsPage() {
       key: "status",
       label: "Status",
       options: ["Draft", "Submitted", "In Review", "Approved", "Rejected"].map(
-        (s) => ({ label: s, value: s })
+        (s) => ({
+          label: s,
+          value: s,
+        })
       ),
     },
     {
@@ -332,7 +329,6 @@ export default function ApprovalsPage() {
           filters={filters}
           defaultPageSize={5}
           onRowClick={(row) => setSelected(row)}
-          loading={loading}
         />
 
         {/* Drawer Detail */}
@@ -388,6 +384,14 @@ function DetailDrawer({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // helper setField (perbaikan utama)
+  function setField<K extends keyof ApprovalForm>(
+    key: K,
+    value: ApprovalForm[K]
+  ) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
   useEffect(() => {
     setForm(initial);
     setEditMode(false);
@@ -395,11 +399,14 @@ function DetailDrawer({
   }, [initial]);
 
   const role = String(user?.role || "").toUpperCase();
+  const isApplicant = role === "PEMOHON" || role === "APPLICANT";
 
+  // izinkan edit saat Draft atau Needs Revision (UI label: Rejected) di tahap Pemohon
   const canEditApplicant =
-    (role === "PEMOHON" || role === "APPLICANT") &&
+    isApplicant &&
     form.tahap === "Pemohon" &&
-    form.status === "Draft";
+    (form.status === "Draft" || form.status === "Rejected");
+
   const canActPB1 =
     (role === "PB1" || role === "PIHAK1") && form.tahap === "Pihak 1";
   const canActPB2 =
@@ -433,8 +440,14 @@ function DetailDrawer({
   }
 
   async function handleSubmit() {
-    if (!(form.status === "Draft" && form.tahap === "Pemohon")) {
-      alert("Hanya boleh submit saat status Draft di tahap Pemohon.");
+    // hanya boleh submit saat di tahap Pemohon dan belum submitted
+    if (
+      !(
+        form.tahap === "Pemohon" &&
+        (form.status === "Draft" || form.status === "Rejected")
+      )
+    ) {
+      alert("Hanya boleh submit saat tahap Pemohon (Draft/Needs Revision).");
       return;
     }
     setSubmitting(true);
@@ -446,7 +459,9 @@ function DetailDrawer({
       try {
         const fresh = await apiJson<any>(
           `${API_BASE}/api/requests/${form.backendId}`,
-          { method: "GET" }
+          {
+            method: "GET",
+          }
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
@@ -461,6 +476,7 @@ function DetailDrawer({
     }
   }
 
+  // ====== ACTION PB1 ======
   async function handleApprovePB1() {
     if (!canActPB1) return;
     const ok = confirm("Setujui di tahap PB1?");
@@ -475,7 +491,9 @@ function DetailDrawer({
       try {
         const fresh = await apiJson<any>(
           `${API_BASE}/api/requests/${form.backendId}`,
-          { method: "GET" }
+          {
+            method: "GET",
+          }
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
@@ -506,11 +524,14 @@ function DetailDrawer({
       try {
         const fresh = await apiJson<any>(
           `${API_BASE}/api/requests/${form.backendId}`,
-          { method: "GET" }
+          {
+            method: "GET",
+          }
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
-        setForm((f) => ({ ...f, status: "Rejected", tahap: "Selesai" }));
+        // fallback: Needs Revision -> kembali ke Pemohon
+        setForm((f) => ({ ...f, status: "Rejected", tahap: "Pemohon" }));
       }
       alert("Ditolak oleh PB1.");
     } catch (e: any) {
@@ -535,11 +556,12 @@ function DetailDrawer({
       try {
         const fresh = await apiJson<any>(
           `${API_BASE}/api/requests/${form.backendId}`,
-          { method: "GET" }
+          {
+            method: "GET",
+          }
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
-        // fallback ke tahap berikutnya (BO)
         setForm((f) => ({ ...f, tahap: "BO", status: "In Review" }));
       }
       alert("Disetujui oleh PB2.");
@@ -567,11 +589,13 @@ function DetailDrawer({
       try {
         const fresh = await apiJson<any>(
           `${API_BASE}/api/requests/${form.backendId}`,
-          { method: "GET" }
+          {
+            method: "GET",
+          }
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
-        setForm((f) => ({ ...f, status: "Rejected", tahap: "Selesai" }));
+        setForm((f) => ({ ...f, status: "Rejected", tahap: "Pemohon" }));
       }
       alert("Ditolak oleh PB2.");
     } catch (e: any) {
@@ -596,11 +620,12 @@ function DetailDrawer({
       try {
         const fresh = await apiJson<any>(
           `${API_BASE}/api/requests/${form.backendId}`,
-          { method: "GET" }
+          {
+            method: "GET",
+          }
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
-        // fallback: selesai approved
         setForm((f) => ({ ...f, tahap: "Selesai", status: "Approved" }));
       }
       alert("Disetujui oleh BO.");
@@ -628,11 +653,15 @@ function DetailDrawer({
       try {
         const fresh = await apiJson<any>(
           `${API_BASE}/api/requests/${form.backendId}`,
-          { method: "GET" }
+          {
+            method: "GET",
+          }
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
-        setForm((f) => ({ ...f, status: "Rejected", tahap: "Selesai" }));
+        // kalau backend betul-betul reject final, boleh selesai.
+        // tapi jika “return for revision” via endpoint ini, sesuaikan sesuai implementasi backend.
+        setForm((f) => ({ ...f, status: "Rejected", tahap: "Pemohon" }));
       }
       alert("Ditolak oleh BO.");
     } catch (e: any) {
@@ -670,8 +699,6 @@ function DetailDrawer({
           </button>
         </div>
       </div>
-
-      {/* Riwayat / Timeline */}
 
       {error && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -830,8 +857,6 @@ function DetailDrawer({
    History Timeline (Simulation)
 ========================= */
 function HistoryTimeline({ form }: { form: ApprovalForm }) {
-  // Simulasi langkah berdasarkan tahap & status saat ini.
-  // Kalau nanti backend kirim Steps lengkap, tinggal ganti sumber datanya.
   const items: Array<{
     label: string;
     tone: "info" | "success" | "warn" | "danger";
@@ -854,8 +879,13 @@ function HistoryTimeline({ form }: { form: ApprovalForm }) {
   if (form.status === "Approved") {
     items.push({ label: "Final Approved (BO)", tone: "success" });
   }
-  if (form.status === "Rejected") {
-    items.push({ label: "Perlu Revisi (Needs Revision)", tone: "danger" });
+  if (form.status === "Rejected" && form.tahap === "Pemohon") {
+    items.push({
+      label: "Perlu Revisi (Needs Revision) - Kembali ke Pemohon",
+      tone: "danger",
+    });
+  } else if (form.status === "Rejected") {
+    items.push({ label: "Perlu Revisi / Ditolak", tone: "danger" });
   }
 
   return (
@@ -909,8 +939,8 @@ function StatusBadge({ status }: { status: ApprovalStatus }) {
     Draft: "bg-zinc-100 text-zinc-700 border-zinc-200",
     Submitted: "bg-blue-50 text-blue-700 border-blue-200",
     "In Review": "bg-amber-50 text-amber-800 border-amber-200",
-    Approved: "bg-green-100 text-green-800 border-green-300", // lebih terang hijau untuk final approved
-    Rejected: "bg-red-100 text-red-800 border-red-300", // merah jelas untuk need_revision/reject
+    Approved: "bg-green-100 text-green-800 border-green-300",
+    Rejected: "bg-red-100 text-red-800 border-red-300",
   };
   return (
     <span

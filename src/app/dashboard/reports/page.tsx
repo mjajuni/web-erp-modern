@@ -22,7 +22,7 @@ const data = [
 export default function ReportsPage() {
   const { user } = useAuth();
   return (
-    <RBACGuard allow={["BO", "ADMIN", "PIHAK2"]}>
+    <RBACGuard allow={["BO", "ADMIN", "PB2"]}>
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold text-zinc-900">
           Reports & Analytics

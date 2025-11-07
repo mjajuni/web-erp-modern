@@ -101,7 +101,7 @@ export default function VendorsPage() {
   ];
 
   return (
-    <RBACGuard allow={["ADMIN", "PIHAK1", "PIHAK2", "PEMOHON"]}>
+    <RBACGuard allow={["ADMIN", "PB1", "PB2", "APPLICANT"]}>
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold text-zinc-900">
           Vendors Management

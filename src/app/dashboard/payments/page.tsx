@@ -23,7 +23,7 @@ export default function PaymentsPage() {
   const { user } = useAuth();
 
   return (
-    <RBACGuard allow={["PIHAK2", "BO", "ADMIN"]}>
+    <RBACGuard allow={["PB2", "BO", "ADMIN"]}>
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold text-zinc-900">Payments</h1>
         <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm ring-1 ring-black/5">

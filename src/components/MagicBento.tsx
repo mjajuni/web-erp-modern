@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 import { gsap } from "gsap";
 
 /* ==== Type Definitions ==== */
@@ -36,37 +36,37 @@ const MOBILE_BREAKPOINT = 768;
 /* ==== Demo Card Data ==== */
 const cardData: BentoCardProps[] = [
   {
-    color: "linear-gradient(135deg, #1A1F71 0%, #2E3192 100%)", // deep indigo smooth
+    color: "linear-gradient(135deg, #1A1F71 0%, #2E3192 100%)",
     title: "Integrated Modules",
     description: "Centralized modules to streamline operations",
     label: "Core",
   },
   {
-    color: "linear-gradient(135deg, #16213E 0%, #1B2444 100%)", // dark navy
+    color: "linear-gradient(135deg, #16213E 0%, #1B2444 100%)",
     title: "Smart Dashboard",
     description: "Visualize performance in real-time",
     label: "Analytics",
   },
   {
-    color: "linear-gradient(135deg, #273043 0%, #3B4A66 100%)", // steel grey
+    color: "linear-gradient(135deg, #273043 0%, #3B4A66 100%)",
     title: "Automation Engine",
     description: "Automate repetitive workflows intelligently",
     label: "Process",
   },
   {
-    color: "linear-gradient(135deg, #2A1B3D 0%, #41295A 100%)", // purple smooth
+    color: "linear-gradient(135deg, #2A1B3D 0%, #41295A 100%)",
     title: "Access Control",
     description: "Secure role-based authentication for all users",
     label: "Security",
   },
   {
-    color: "linear-gradient(135deg, #243B55 0%, #141E30 100%)", // blue-black
+    color: "linear-gradient(135deg, #243B55 0%, #141E30 100%)",
     title: "Integration Hub",
     description: "Seamlessly connect with third-party systems",
     label: "Connectivity",
   },
   {
-    color: "linear-gradient(135deg, #4A00E0 0%, #8E2DE2 100%)", // premium violet
+    color: "linear-gradient(135deg, #4A00E0 0%, #8E2DE2 100%)",
     title: "Performance Insights",
     description: "Get deep operational insights instantly",
     label: "Insights",
@@ -142,7 +142,7 @@ const ParticleCard: React.FC<{
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const particlesRef = useRef<HTMLDivElement[]>([]);
-  const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const isHoveredRef = useRef(false);
   const memoizedParticles = useRef<HTMLDivElement[]>([]);
   const particlesInitialized = useRef(false);
@@ -163,19 +163,25 @@ const ParticleCard: React.FC<{
   }, [particleCount, glowColor]);
 
   const clearAllParticles = useCallback(() => {
-    timeoutsRef.current.forEach(clearTimeout);
+    // clear pending timeouts
+    timeoutsRef.current.forEach((t) => clearTimeout(t));
     timeoutsRef.current = [];
+    // stop magnetism
     magnetismAnimationRef.current?.kill();
 
+    // fade out and remove particles
     particlesRef.current.forEach((particle) => {
       gsap.to(particle, {
         scale: 0,
         opacity: 0,
         duration: 0.3,
         ease: "back.in(1.7)",
-        onComplete: () => particle.parentNode?.removeChild(particle),
+        onComplete: () => {
+          particle.remove(); // returns void
+        },
       });
     });
+
     particlesRef.current = [];
   }, []);
 
@@ -186,6 +192,7 @@ const ParticleCard: React.FC<{
     memoizedParticles.current.forEach((particle, index) => {
       const timeoutId = setTimeout(() => {
         if (!isHoveredRef.current || !cardRef.current) return;
+
         const clone = particle.cloneNode(true) as HTMLDivElement;
         cardRef.current.appendChild(clone);
         particlesRef.current.push(clone);
@@ -195,6 +202,7 @@ const ParticleCard: React.FC<{
           { scale: 0, opacity: 0 },
           { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(1.7)" }
         );
+
         gsap.to(clone, {
           x: (Math.random() - 0.5) * 100,
           y: (Math.random() - 0.5) * 100,
@@ -214,28 +222,33 @@ const ParticleCard: React.FC<{
     if (disableAnimations || !cardRef.current) return;
 
     const el = cardRef.current;
+
     const handleEnter = () => {
       isHoveredRef.current = true;
       animateParticles();
-      if (enableTilt)
+      if (enableTilt) {
         gsap.to(el, {
           rotateX: 5,
           rotateY: 5,
           duration: 0.3,
           ease: "power2.out",
         });
+      }
     };
+
     const handleLeave = () => {
       isHoveredRef.current = false;
       clearAllParticles();
-      if (enableTilt)
+      if (enableTilt) {
         gsap.to(el, {
           rotateX: 0,
           rotateY: 0,
           duration: 0.3,
           ease: "power2.out",
         });
+      }
     };
+
     const handleMove = (e: MouseEvent) => {
       if (!enableTilt && !enableMagnetism) return;
       const rect = el.getBoundingClientRect();
@@ -243,11 +256,13 @@ const ParticleCard: React.FC<{
       const y = e.clientY - rect.top;
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
+
       if (enableTilt) {
         const rotateX = ((y - centerY) / centerY) * -10;
         const rotateY = ((x - centerX) / centerX) * 10;
         gsap.to(el, { rotateX, rotateY, duration: 0.1, ease: "power2.out" });
       }
+
       if (enableMagnetism) {
         gsap.to(el, {
           x: (x - centerX) * 0.05,
@@ -261,6 +276,7 @@ const ParticleCard: React.FC<{
     el.addEventListener("mouseenter", handleEnter);
     el.addEventListener("mouseleave", handleLeave);
     el.addEventListener("mousemove", handleMove);
+
     return () => {
       el.removeEventListener("mouseenter", handleEnter);
       el.removeEventListener("mouseleave", handleLeave);
@@ -279,7 +295,7 @@ const ParticleCard: React.FC<{
       {children}
     </div>
   );
-};
+}; // ← penting: akhiri deklarasi const dengan ;
 
 /* ==== Spotlight ==== */
 const GlobalSpotlight: React.FC<{
@@ -296,8 +312,10 @@ const GlobalSpotlight: React.FC<{
   glowColor = DEFAULT_GLOW_COLOR,
 }) => {
   const spotlightRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (disableAnimations || !gridRef?.current || !enabled) return;
+
     const spot = document.createElement("div");
     spot.className = "global-spotlight";
     spot.style.cssText = `
@@ -319,12 +337,15 @@ const GlobalSpotlight: React.FC<{
         ease: "power2.out",
       });
     };
+
     document.addEventListener("mousemove", move);
+
     return () => {
       document.removeEventListener("mousemove", move);
       spot.remove();
     };
   }, [gridRef, disableAnimations, enabled, glowColor]);
+
   return null;
 };
 

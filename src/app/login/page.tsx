@@ -1,16 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Eye, EyeOff, Mail, Lock, LogIn } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+/** ===== Komponen yang MEMAKAI useSearchParams (dibungkus Suspense) ===== */
+function LoginInner() {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string>("");
 
-  const sp = useSearchParams();
+  const sp = useSearchParams(); // ← aman karena dipanggil di dalam Suspense
   const redirect = sp.get("redirect") || "/dashboard/overview";
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -23,7 +24,6 @@ export default function LoginPage() {
     const password = form.get("password");
 
     try {
-      // ⬅️ Arahkan ke API proxy Next.js (server yang set cookie httpOnly)
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -35,8 +35,6 @@ export default function LoginPage() {
         throw new Error(data?.message || "Login gagal");
       }
 
-      // Cookie httpOnly 'token' & (opsional) 'role' sudah diset oleh server
-      // → Tinggal redirect; middleware akan mengizinkan akses
       window.location.href = redirect;
     } catch (e: any) {
       setErr(e?.message || "Email atau password salah / server error.");
@@ -162,5 +160,14 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** ===== Default export: bungkus LoginInner dengan Suspense ===== */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-zinc-500">Loading…</div>}>
+      <LoginInner />
+    </Suspense>
   );
 }

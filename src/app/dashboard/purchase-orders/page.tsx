@@ -23,7 +23,7 @@ export default function PurchaseOrdersPage() {
   const { user } = useAuth();
 
   return (
-    <RBACGuard allow={["PEMOHON", "PIHAK1", "PIHAK2", "ADMIN"]}>
+    <RBACGuard allow={["APPLICANT", "PB1", "PB2", "ADMIN"]}>
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold text-zinc-900">
           Purchase Orders

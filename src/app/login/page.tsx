@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import ElectricBorder from "@/components/ElectricBorder";
 import DecryptedText from "@/components/DecryptedText";
+import ScrambledText from "@/components/ScrambledText";
+import BlurText from "@/components/BlurText";
 
 /** ===== Komponen yang MEMAKAI useSearchParams (dibungkus Suspense) ===== */
 function LoginInner() {
@@ -157,15 +159,13 @@ function LoginInner() {
           {/* Demo Info */}
           <div className="mt-6 rounded-xl border border-dashed border-zinc-200 bg-white/60 p-3 text-xs text-zinc-600">
             <p className="font-medium">Akun demo</p>
-            <DecryptedText
+            <BlurText
               text="ani@app.test, (PB1)budi@auth.test, (PB2)citra@auth.test,
               (BO)dodi@auth.test, password=123"
-              speed={100}
-              maxIterations={20}
-              characters="==>Result(Printf(() => OK))"
+              delay={150}
+              animateBy="words"
+              direction="top"
               className="text-xs text-zinc-600"
-              parentClassName="all-letters"
-              encryptedClassName="encrypted"
             />
           </div>
 

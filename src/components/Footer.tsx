@@ -13,7 +13,7 @@ function getOsAndBrowser(ua: string) {
   else if (/linux/i.test(ua)) os = "Linux";
 
   const m = ua.match(
-    /(Chrome|Safari|Firefox|Edg|Edge|Brave|Opera|OPR|SamsungBrowser)\/([\d.]+)/
+    /(Chrome|Safari|Firefox|Edg|Edge|Brave|Opera|OPR|SamsungBrowser)\/([\d.]+)/,
   );
   let browser = "Browser";
   if (m) {
@@ -73,7 +73,7 @@ export default function Footer() {
           minute: "2-digit",
           second: "2-digit",
           timeZone: "Asia/Jakarta",
-        })
+        }),
       );
     };
     tick();

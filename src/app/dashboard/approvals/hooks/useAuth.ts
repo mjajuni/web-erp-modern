@@ -86,7 +86,7 @@ export function useAuth() {
         setLoading(false);
       }
     },
-    [me]
+    [me],
   );
 
   const logout = useCallback(async () => {

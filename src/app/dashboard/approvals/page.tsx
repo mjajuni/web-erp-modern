@@ -117,8 +117,8 @@ function transformToApproval(r: any): ApprovalForm {
     typeof r?.Amount === "number"
       ? r.Amount
       : typeof r?.amount === "number"
-      ? r.amount
-      : Number(r?.Nominal ?? 0);
+        ? r.amount
+        : Number(r?.Nominal ?? 0);
 
   const created =
     r?.CreatedAt ||
@@ -189,7 +189,7 @@ export default function ApprovalsPage() {
         (s) => ({
           label: s,
           value: s,
-        })
+        }),
       ),
     },
     {
@@ -208,7 +208,7 @@ export default function ApprovalsPage() {
     setErr("");
     try {
       const isApplicant = ["APPLICANT", "PEMOHON"].includes(
-        String(user?.role || "").toUpperCase()
+        String(user?.role || "").toUpperCase(),
       );
       const url = isApplicant
         ? `${API_BASE}/api/requests/mine`
@@ -218,8 +218,8 @@ export default function ApprovalsPage() {
       const list = Array.isArray(raw?.data)
         ? raw.data
         : Array.isArray(raw)
-        ? raw
-        : [];
+          ? raw
+          : [];
       const mapped = list.map(transformToApproval);
       setData(mapped);
     } catch (e: any) {
@@ -240,7 +240,7 @@ export default function ApprovalsPage() {
     const approved = data.filter((x) => x.status === "Approved").length;
     const rejected = data.filter((x) => x.status === "Rejected").length;
     const pending = data.filter(
-      (x) => x.status === "Submitted" || x.status === "In Review"
+      (x) => x.status === "Submitted" || x.status === "In Review",
     ).length;
     return { total, approved, pending, rejected };
   }, [data]);
@@ -269,7 +269,7 @@ export default function ApprovalsPage() {
           </div>
 
           {["PEMOHON", "APPLICANT"].includes(
-            String(user.role).toUpperCase()
+            String(user.role).toUpperCase(),
           ) && (
             <button
               className="rounded-lg px-4 py-2 text-sm text-white shadow-sm hover:brightness-110"
@@ -387,7 +387,7 @@ function DetailDrawer({
   // helper setField (perbaikan utama)
   function setField<K extends keyof ApprovalForm>(
     key: K,
-    value: ApprovalForm[K]
+    value: ApprovalForm[K],
   ) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -461,7 +461,7 @@ function DetailDrawer({
           `${API_BASE}/api/requests/${form.backendId}`,
           {
             method: "GET",
-          }
+          },
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
@@ -493,7 +493,7 @@ function DetailDrawer({
           `${API_BASE}/api/requests/${form.backendId}`,
           {
             method: "GET",
-          }
+          },
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
@@ -526,7 +526,7 @@ function DetailDrawer({
           `${API_BASE}/api/requests/${form.backendId}`,
           {
             method: "GET",
-          }
+          },
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
@@ -558,7 +558,7 @@ function DetailDrawer({
           `${API_BASE}/api/requests/${form.backendId}`,
           {
             method: "GET",
-          }
+          },
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
@@ -591,7 +591,7 @@ function DetailDrawer({
           `${API_BASE}/api/requests/${form.backendId}`,
           {
             method: "GET",
-          }
+          },
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
@@ -622,7 +622,7 @@ function DetailDrawer({
           `${API_BASE}/api/requests/${form.backendId}`,
           {
             method: "GET",
-          }
+          },
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {
@@ -655,7 +655,7 @@ function DetailDrawer({
           `${API_BASE}/api/requests/${form.backendId}`,
           {
             method: "GET",
-          }
+          },
         );
         setForm(transformToApproval(fresh?.data ?? fresh));
       } catch {

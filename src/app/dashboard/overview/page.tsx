@@ -32,7 +32,7 @@ export default function OverviewPage() {
         badge: "Improving",
       },
     ],
-    []
+    [],
   );
 
   const series = useMemo(
@@ -50,7 +50,7 @@ export default function OverviewPage() {
       { m: "Nov", revenue: 13.0, expense: 10.2 },
       { m: "Des", revenue: 13.4, expense: 10.5 },
     ],
-    []
+    [],
   );
 
   const topVendors = useMemo(
@@ -61,7 +61,7 @@ export default function OverviewPage() {
       { vendor: "PT Sinar Karya", amount: 18.9 },
       { vendor: "PT Arunika", amount: 16.3 },
     ],
-    []
+    [],
   );
 
   const rows = useMemo(
@@ -102,7 +102,7 @@ export default function OverviewPage() {
         date: "31 Oct 2025",
       },
     ],
-    []
+    [],
   );
 
   return (

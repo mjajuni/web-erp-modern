@@ -99,7 +99,7 @@ export default function PremiumRequestForm() {
 
   const formatCurrency = (num: number) => {
     const nf = new Intl.NumberFormat(
-      watchCurrency === "USD" ? "en-US" : "id-ID"
+      watchCurrency === "USD" ? "en-US" : "id-ID",
     );
     return nf.format(num);
   };

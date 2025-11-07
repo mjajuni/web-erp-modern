@@ -44,7 +44,7 @@ export default function Field(props: FieldProps) {
           onChange={(e) => props.onChange?.(e.target.value)}
           className={clsx(
             "mt-1 w-full rounded-md border border-zinc-300 px-2 py-1 text-sm",
-            "focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            "focus:outline-none focus:ring-2 focus:ring-zinc-400",
           )}
         />
       ) : (

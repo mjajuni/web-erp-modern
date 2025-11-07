@@ -51,7 +51,7 @@ export default function DataTable<T extends Record<string, any>>({
       Object.fromEntries(filters.map((f) => [String(f.key), "ALL"])) as Record<
         string,
         string
-      >
+      >,
   );
 
   // handlings
@@ -60,7 +60,7 @@ export default function DataTable<T extends Record<string, any>>({
       Object.fromEntries(filters.map((f) => [String(f.key), "ALL"])) as Record<
         string,
         string
-      >
+      >,
     );
     setPage(1);
   };
@@ -73,7 +73,7 @@ export default function DataTable<T extends Record<string, any>>({
         const active = activeFilters[k] ?? "ALL";
         if (active === "ALL") return true;
         return String(row[f.key]) === active;
-      })
+      }),
     );
 
     // 2) filter by search
@@ -84,8 +84,8 @@ export default function DataTable<T extends Record<string, any>>({
         (key) =>
           String(row[key] ?? "")
             .toLowerCase()
-            .includes(q)
-      )
+            .includes(q),
+      ),
     );
   }, [data, filters, activeFilters, query, searchKeys]);
 
@@ -93,7 +93,7 @@ export default function DataTable<T extends Record<string, any>>({
   const currentPage = Math.min(page, totalPages);
   const paginated = filtered.slice(
     (currentPage - 1) * pageSize,
-    currentPage * pageSize
+    currentPage * pageSize,
   );
 
   return (
@@ -199,8 +199,8 @@ export default function DataTable<T extends Record<string, any>>({
                         c.align === "right"
                           ? "text-right"
                           : c.align === "center"
-                          ? "text-center"
-                          : "text-left"
+                            ? "text-center"
+                            : "text-left"
                       }`}
                     >
                       {c.render

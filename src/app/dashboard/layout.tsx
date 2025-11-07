@@ -58,7 +58,7 @@ export default function DashboardLayout({
                   key={item.path}
                   href={item.path}
                   className={cn(
-                    "flex items-center justify-between rounded-lg px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50"
+                    "flex items-center justify-between rounded-lg px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-50",
                   )}
                 >
                   <span>{item.label}</span>

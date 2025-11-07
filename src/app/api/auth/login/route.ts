@@ -5,7 +5,7 @@ const RAW_BACKEND_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"; // <= fallback aman
 const BACKEND_LOGIN_URL = `${RAW_BACKEND_URL.replace(
   /\/+$/,
-  ""
+  "",
 )}/api/auth/login`;
 
 export async function POST(req: Request) {
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     if (!body?.email || !body?.password) {
       return NextResponse.json(
         { message: "Email/password wajib diisi" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     }).catch((e) => {
       // koneksi gagal (ECONNREFUSED, dll)
       throw new Error(
-        `Tidak bisa menghubungi backend di ${BACKEND_LOGIN_URL}: ${e.message}`
+        `Tidak bisa menghubungi backend di ${BACKEND_LOGIN_URL}: ${e.message}`,
       );
     });
 
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
           message: `Login gagal (backend ${upstream.status}).`,
           detail: text?.slice(0, 500),
         },
-        { status: upstream.status }
+        { status: upstream.status },
       );
     }
 
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     if (!data?.token || !data?.user) {
       return NextResponse.json(
         { message: "Respon backend tidak sesuai (missing token/user)." },
-        { status: 502 }
+        { status: 502 },
       );
     }
 
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       "Set-Cookie",
       `token=${data.token}; Path=/; HttpOnly; SameSite=Lax; ${
         process.env.NODE_ENV === "production" ? "Secure; " : ""
-      } Max-Age=86400`
+      } Max-Age=86400`,
     );
     // opsional: untuk UI gating di client (bukan security)
     if (data.user?.role) {
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
         "Set-Cookie",
         `role=${encodeURIComponent(data.user.role)}; Path=/; SameSite=Lax; ${
           process.env.NODE_ENV === "production" ? "Secure; " : ""
-        } Max-Age=86400`
+        } Max-Age=86400`,
       );
     }
 
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
         message: "Internal Server Error di API proxy.",
         hint: err?.message?.slice(0, 300),
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

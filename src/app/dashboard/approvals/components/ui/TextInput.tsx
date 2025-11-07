@@ -2,7 +2,7 @@
 import { InputHTMLAttributes } from "react";
 
 export default function TextInput(
-  props: InputHTMLAttributes<HTMLInputElement>
+  props: InputHTMLAttributes<HTMLInputElement>,
 ) {
   const cls =
     "w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none " +

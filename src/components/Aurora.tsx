@@ -159,7 +159,7 @@ export default function Aurora(props: AuroraProps) {
       gl.ONE,
       gl.ONE_MINUS_SRC_ALPHA,
       gl.ONE,
-      gl.ONE_MINUS_SRC_ALPHA
+      gl.ONE_MINUS_SRC_ALPHA,
     );
 
     // Canvas hygiene

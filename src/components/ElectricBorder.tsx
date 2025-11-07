@@ -58,17 +58,17 @@ const ElectricBorder: React.FC<ElectricBorderProps> = ({
 
     const width = Math.max(
       1,
-      Math.round(host.clientWidth || host.getBoundingClientRect().width || 0)
+      Math.round(host.clientWidth || host.getBoundingClientRect().width || 0),
     );
     const height = Math.max(
       1,
-      Math.round(host.clientHeight || host.getBoundingClientRect().height || 0)
+      Math.round(host.clientHeight || host.getBoundingClientRect().height || 0),
     );
 
     const dyAnims = Array.from(
       svg.querySelectorAll<SVGAnimateElement>(
-        'feOffset > animate[attributeName="dy"]'
-      )
+        'feOffset > animate[attributeName="dy"]',
+      ),
     );
     if (dyAnims.length >= 2) {
       dyAnims[0].setAttribute("values", `${height}; 0`);
@@ -77,8 +77,8 @@ const ElectricBorder: React.FC<ElectricBorderProps> = ({
 
     const dxAnims = Array.from(
       svg.querySelectorAll<SVGAnimateElement>(
-        'feOffset > animate[attributeName="dx"]'
-      )
+        'feOffset > animate[attributeName="dx"]',
+      ),
     );
     if (dxAnims.length >= 2) {
       dxAnims[0].setAttribute("values", `${width}; 0`);
@@ -93,7 +93,7 @@ const ElectricBorder: React.FC<ElectricBorderProps> = ({
     if (disp) disp.setAttribute("scale", String(30 * (chaos || 1)));
 
     const filterEl = svg.querySelector<SVGFilterElement>(
-      `#${CSS.escape(filterId)}`
+      `#${CSS.escape(filterId)}`,
     );
     if (filterEl) {
       filterEl.setAttribute("x", "-200%");
@@ -162,7 +162,7 @@ const ElectricBorder: React.FC<ElectricBorderProps> = ({
     zIndex: -1,
     background: `linear-gradient(-30deg, ${hexToRgba(
       color,
-      0.8
+      0.8,
     )}, transparent, ${color})`,
   };
 

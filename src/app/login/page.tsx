@@ -8,6 +8,7 @@ import ElectricBorder from "@/components/ElectricBorder";
 import DecryptedText from "@/components/DecryptedText";
 import ScrambledText from "@/components/ScrambledText";
 import BlurText from "@/components/BlurText";
+import GradientText from "@/components/GradientText";
 
 /** ===== Komponen yang MEMAKAI useSearchParams (dibungkus Suspense) ===== */
 function LoginInner() {
@@ -64,7 +65,7 @@ function LoginInner() {
       >
         {/* === Card === */}
         <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/40 bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] p-8">
-          <header className="mb-6 flex items-center gap-3">
+          <header className="mb-6 flex items-center gap-2.5">
             <div
               className="grid size-10 place-items-center rounded-2xl font-semibold text-white shadow-sm"
               style={{ backgroundColor: "#272465" }}
@@ -72,9 +73,12 @@ function LoginInner() {
               ER
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-zinc-900">
-                ERP Console
-              </h2>
+              <GradientText
+                colors={["#40ffaa", "#4079ff", "#40ffaa", "#4079ff", "#40ffaa"]}
+                className="text-lg font-semibold text-zinc-900"
+              >
+                <h2>ERP Console</h2>
+              </GradientText>
               <p className="text-xs text-zinc-500">Secure sign-in</p>
             </div>
           </header>

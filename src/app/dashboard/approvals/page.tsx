@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import DataTable, { Column, FilterDef } from "../components/DataTable";
-import { useAuth } from "./hooks/useAuth";
-import RBACGuard from "./components/RBACGuard";
+import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, Clock, FileX, Layers } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import DataTable, { Column, FilterDef } from "../components/DataTable";
+import RBACGuard from "./components/RBACGuard";
+import { useAuth } from "./hooks/useAuth";
 
-// ------- Types -------
+/* =========================
+   Types & Constants
+========================= */
 type ApprovalStage = "Pemohon" | "Pihak 1" | "Pihak 2" | "BO" | "Selesai";
 type ApprovalStatus =
   | "Draft"
@@ -17,64 +20,153 @@ type ApprovalStatus =
   | "Rejected";
 
 interface ApprovalForm {
-  id: string;
+  id: string; // RequestNo/Code untuk ditampilkan
+  backendId: string | number; // primary key untuk endpoint /api/requests/:id
   pemohon: string;
   perusahaan: string;
   nominal: number;
-  tanggal: string;
+  tanggal: string; // yyyy-mm-dd
   tahap: ApprovalStage;
   status: ApprovalStatus;
+  // field yang bisa diedit pada tahap DRAFT oleh Pemohon
+  preApprovalRef?: string;
+  currency?: string;
+  title?: string;
+  description?: string;
 }
 
-// ------- Dummy Data -------
-const dummyApprovals: ApprovalForm[] = [
-  {
-    id: "APP-2025-0001",
-    pemohon: "Rani Pratiwi",
-    perusahaan: "PT Arunika",
-    nominal: 185000000,
-    tanggal: "2025-11-02",
-    tahap: "Pihak 2",
-    status: "In Review",
-  },
-  {
-    id: "APP-2025-0002",
-    pemohon: "Andi Nugroho",
-    perusahaan: "PT Mega Jaya",
-    nominal: 45200000,
-    tanggal: "2025-11-01",
-    tahap: "BO",
-    status: "Submitted",
-  },
-  {
-    id: "APP-2025-0003",
-    pemohon: "Budi Santoso",
-    perusahaan: "PT Nusantara Tech",
-    nominal: 9650000,
-    tanggal: "2025-11-01",
-    tahap: "Selesai",
-    status: "Approved",
-  },
-  {
-    id: "APP-2025-0004",
-    pemohon: "Sinta Rahma",
-    perusahaan: "CV Prima Abadi",
-    nominal: 12800000,
-    tanggal: "2025-11-02",
-    tahap: "Pihak 1",
-    status: "Draft",
-  },
-];
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
+  "http://localhost:8080";
 
-// ------- Main Component -------
+/* =========================
+   Helpers
+========================= */
+async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    cache: "no-store",
+    ...init,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
+/** Map status backend -> tahap UI */
+function stageFromStatus(status?: string): ApprovalStage {
+  const x = String(status || "").toUpperCase();
+  if (x === "UNDER_REVIEW_PB1") return "Pihak 1";
+  if (x === "UNDER_REVIEW_PB2") return "Pihak 2";
+  if (x === "UNDER_REVIEW_BO") return "BO";
+  if (
+    x === "APPROVED_FINAL" ||
+    x === "APPROVED" ||
+    x === "REJECTED" ||
+    x === "NEEDS_REVISION"
+  )
+    return "Selesai";
+  return "Pemohon";
+}
+
+function normalizeStatus(s?: string): ApprovalStatus {
+  const x = String(s || "").toUpperCase();
+  if (x === "DRAFT") return "Draft";
+  if (x === "NEEDS_REVISION") return "Rejected";
+  if (x === "SUBMITTED") return "Submitted";
+  if (x.startsWith("UNDER_REVIEW_")) return "In Review";
+  if (x === "APPROVED_FINAL" || x === "APPROVED") return "Approved";
+  if (x === "REJECTED") return "Rejected";
+  return "Draft";
+}
+
+// tambahkan di atas (dekat Helpers)
+function normalizeName(s?: string) {
+  const n = String(s || "").trim();
+  // hapus akhiran " pemohon" (case-insensitive)
+  return n.replace(/\s+pemohon$/i, "").trim();
+}
+
+/** Ubah bentuk record backend -> ApprovalForm */
+function transformToApproval(r: any): ApprovalForm {
+  const backendId =
+    r?.id ?? r?.ID ?? r?.requestId ?? r?.RequestID ?? r?.RequestId;
+  const id =
+    r?.RequestNo || r?.requestNo || r?.code || String(backendId ?? "—");
+
+  const company =
+    r?.CompanyName ||
+    r?.Company?.Name || // ⬅️ fallback baru
+    r?.companyName ||
+    r?.company ||
+    r?.Perusahaan ||
+    (r?.CompanyID ? `#${r.CompanyID}` : "—");
+
+  const applicantRaw =
+    r?.ApplicantName ||
+    r?.Applicant?.Name ||
+    r?.applicantName ||
+    r?.applicant ||
+    r?.Pemohon ||
+    "—";
+
+  const applicant = normalizeName(applicantRaw);
+
+  const amount =
+    typeof r?.Amount === "number"
+      ? r.Amount
+      : typeof r?.amount === "number"
+      ? r.amount
+      : Number(r?.Nominal ?? 0);
+
+  const created =
+    r?.CreatedAt ||
+    r?.createdAt ||
+    r?.tanggal ||
+    r?.Date ||
+    r?.date ||
+    new Date().toISOString();
+
+  const status = normalizeStatus(r?.Status || r?.status);
+  const tahap = stageFromStatus(r?.Status || r?.status);
+
+  const d = new Date(created);
+  const tanggal = isNaN(d.getTime()) ? "—" : d.toISOString().slice(0, 10);
+
+  return {
+    id: String(id),
+    backendId: backendId ?? id,
+    pemohon: String(applicant),
+    perusahaan: String(company),
+    nominal: Number.isFinite(amount) ? amount : 0,
+    tanggal,
+    tahap,
+    status,
+    preApprovalRef: r?.PreApprovalRef || r?.preApprovalRef,
+    currency: r?.Currency || r?.currency,
+    title: r?.Title || r?.title,
+    description: r?.Description || r?.description,
+  };
+}
+
+/* =========================
+   Page Component
+========================= */
 export default function ApprovalsPage() {
   const { user } = useAuth();
-  const [selected, setSelected] = useState<ApprovalForm | null>(null);
+  const router = useRouter();
 
-  if (!user)
-    return (
-      <div className="p-6 text-zinc-500 animate-pulse">Memuat user...</div>
-    );
+  const [data, setData] = useState<ApprovalForm[]>([]);
+  const [selected, setSelected] = useState<ApprovalForm | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string>("");
 
   const columns: Column<ApprovalForm>[] = [
     { key: "id", header: "ID Form" },
@@ -87,11 +179,7 @@ export default function ApprovalsPage() {
       align: "right",
       render: (v) => v.toLocaleString("id-ID"),
     },
-    {
-      key: "tahap",
-      header: "Tahap",
-      render: (v) => <StageBadge stage={v} />,
-    },
+    { key: "tahap", header: "Tahap", render: (v) => <StageBadge stage={v} /> },
     {
       key: "status",
       header: "Status",
@@ -117,8 +205,56 @@ export default function ApprovalsPage() {
     },
   ];
 
+  // ---- FETCH ----
+  async function fetchApprovals() {
+    setLoading(true);
+    setErr("");
+    try {
+      const isApplicant = ["APPLICANT", "PEMOHON"].includes(
+        String(user?.role || "").toUpperCase()
+      );
+      const url = isApplicant
+        ? `${API_BASE}/api/requests/mine`
+        : `${API_BASE}/api/requests/inbox`;
+
+      const raw = await apiJson<any>(url, { method: "GET" });
+      const list = Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw)
+        ? raw
+        : [];
+      const mapped = list.map(transformToApproval);
+      setData(mapped);
+    } catch (e: any) {
+      setErr(e?.message || "Terjadi kesalahan saat memuat data.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (user) fetchApprovals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // ---- Stats dinamis ----
+  const stats = useMemo(() => {
+    const total = data.length;
+    const approved = data.filter((x) => x.status === "Approved").length;
+    const rejected = data.filter((x) => x.status === "Rejected").length;
+    const pending = data.filter(
+      (x) => x.status === "Submitted" || x.status === "In Review"
+    ).length;
+    return { total, approved, pending, rejected };
+  }, [data]);
+
+  if (!user)
+    return (
+      <div className="p-6 text-zinc-500 animate-pulse">Memuat user...</div>
+    );
+
   return (
-    <RBACGuard allow={["PEMOHON", "PIHAK1", "PIHAK2", "BO", "ADMIN"]}>
+    <RBACGuard allow={["BO", "ADMIN", "APPLICANT", "PB1", "PB2"]}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -134,42 +270,69 @@ export default function ApprovalsPage() {
               Form Approval Transaksi Resmi
             </h1>
           </div>
-          {user.role === "PEMOHON" && (
+
+          {["PEMOHON", "APPLICANT"].includes(
+            String(user.role).toUpperCase()
+          ) && (
             <button
               className="rounded-lg px-4 py-2 text-sm text-white shadow-sm hover:brightness-110"
               style={{ backgroundColor: "#272465" }}
+              onClick={() => router.push("/dashboard/approvals/new")}
             >
               + Form Baru
             </button>
           )}
         </div>
 
+        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <CardStat
             label="Total Form"
-            value="4"
+            value={String(stats.total)}
             color="#272465"
             icon={Layers}
           />
           <CardStat
             label="Approved"
-            value="1"
+            value={String(stats.approved)}
             color="#16a34a"
             icon={CheckCircle2}
           />
-          <CardStat label="Pending" value="2" color="#f59e0b" icon={Clock} />
-          <CardStat label="Rejected" value="1" color="#dc2626" icon={FileX} />
+          <CardStat
+            label="Pending"
+            value={String(stats.pending)}
+            color="#f59e0b"
+            icon={Clock}
+          />
+          <CardStat
+            label="Rejected"
+            value={String(stats.rejected)}
+            color="#dc2626"
+            icon={FileX}
+          />
+        </div>
+
+        {/* Info */}
+        <div className="text-sm text-zinc-500">
+          {loading ? (
+            "Memuat data…"
+          ) : err ? (
+            <span className="text-rose-600">{err}</span>
+          ) : (
+            ""
+          )}
         </div>
 
         {/* Table */}
         <DataTable
           title="Daftar Form Approval"
           columns={columns}
-          data={dummyApprovals}
+          data={data}
           searchKeys={["id", "pemohon", "perusahaan"]}
           filters={filters}
           defaultPageSize={5}
           onRowClick={(row) => setSelected(row)}
+          loading={loading}
         />
 
         {/* Drawer Detail */}
@@ -194,7 +357,10 @@ export default function ApprovalsPage() {
               >
                 <DetailDrawer
                   form={selected}
-                  onClose={() => setSelected(null)}
+                  onClose={() => {
+                    setSelected(null);
+                    fetchApprovals();
+                  }}
                 />
               </motion.aside>
             </motion.div>
@@ -205,7 +371,522 @@ export default function ApprovalsPage() {
   );
 }
 
-// ------- Small Components -------
+/* =========================
+   Detail Drawer
+========================= */
+function DetailDrawer({
+  form: initial,
+  onClose,
+}: {
+  form: ApprovalForm;
+  onClose: () => void;
+}) {
+  const { user } = useAuth();
+  const [form, setForm] = useState(initial);
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm(initial);
+    setEditMode(false);
+    setError(null);
+  }, [initial]);
+
+  const role = String(user?.role || "").toUpperCase();
+
+  const canEditApplicant =
+    (role === "PEMOHON" || role === "APPLICANT") &&
+    form.tahap === "Pemohon" &&
+    form.status === "Draft";
+  const canActPB1 =
+    (role === "PB1" || role === "PIHAK1") && form.tahap === "Pihak 1";
+  const canActPB2 =
+    (role === "PB2" || role === "PIHAK2") && form.tahap === "Pihak 2";
+  const canActBO = role === "BO" && form.tahap === "BO";
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        Title: form.title ?? undefined,
+        Description: form.description ?? undefined,
+        Currency: form.currency ?? undefined,
+        PreApprovalRef: form.preApprovalRef ?? undefined,
+        Amount: form.nominal,
+      };
+      const url = `${API_BASE}/api/requests/${form.backendId}`;
+      const updated = await apiJson<any>(url, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      const mapped = transformToApproval(updated?.data ?? updated);
+      setForm(mapped);
+      setEditMode(false);
+    } catch (e: any) {
+      setError(e.message || "Gagal menyimpan perubahan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!(form.status === "Draft" && form.tahap === "Pemohon")) {
+      alert("Hanya boleh submit saat status Draft di tahap Pemohon.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const url = `${API_BASE}/api/requests/${form.backendId}/submit`;
+      await apiJson<any>(url, { method: "POST" });
+
+      try {
+        const fresh = await apiJson<any>(
+          `${API_BASE}/api/requests/${form.backendId}`,
+          { method: "GET" }
+        );
+        setForm(transformToApproval(fresh?.data ?? fresh));
+      } catch {
+        setForm((f) => ({ ...f, status: "In Review", tahap: "Pihak 1" }));
+      }
+      setEditMode(false);
+      alert("Berhasil submit");
+    } catch (e: any) {
+      setError(e.message || "Gagal submit.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleApprovePB1() {
+    if (!canActPB1) return;
+    const ok = confirm("Setujui di tahap PB1?");
+    if (!ok) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const url = `${API_BASE}/api/approvals/${form.backendId}/pb1/approve`;
+      await apiJson<any>(url, { method: "POST" });
+
+      try {
+        const fresh = await apiJson<any>(
+          `${API_BASE}/api/requests/${form.backendId}`,
+          { method: "GET" }
+        );
+        setForm(transformToApproval(fresh?.data ?? fresh));
+      } catch {
+        setForm((f) => ({ ...f, tahap: "Pihak 2", status: "In Review" }));
+      }
+      alert("Disetujui oleh PB1.");
+    } catch (e: any) {
+      setError(e.message || "Gagal approve PB1.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRejectPB1() {
+    if (!canActPB1) return;
+    const note = prompt("Tolak di tahap PB1? Tambahkan alasan (opsional):", "");
+    if (note === null) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const url = `${API_BASE}/api/approvals/${form.backendId}/pb1/return`;
+      await apiJson<any>(url, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      });
+
+      try {
+        const fresh = await apiJson<any>(
+          `${API_BASE}/api/requests/${form.backendId}`,
+          { method: "GET" }
+        );
+        setForm(transformToApproval(fresh?.data ?? fresh));
+      } catch {
+        setForm((f) => ({ ...f, status: "Rejected", tahap: "Selesai" }));
+      }
+      alert("Ditolak oleh PB1.");
+    } catch (e: any) {
+      setError(e.message || "Gagal reject PB1.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ====== ACTION PB2 ======
+  async function handleApprovePB2() {
+    if (!canActPB2) return;
+    const ok = confirm("Setujui di tahap PB2?");
+    if (!ok) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const url = `${API_BASE}/api/approvals/${form.backendId}/pb2/approve`;
+      await apiJson<any>(url, { method: "POST" });
+
+      try {
+        const fresh = await apiJson<any>(
+          `${API_BASE}/api/requests/${form.backendId}`,
+          { method: "GET" }
+        );
+        setForm(transformToApproval(fresh?.data ?? fresh));
+      } catch {
+        // fallback ke tahap berikutnya (BO)
+        setForm((f) => ({ ...f, tahap: "BO", status: "In Review" }));
+      }
+      alert("Disetujui oleh PB2.");
+    } catch (e: any) {
+      setError(e.message || "Gagal approve PB2.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRejectPB2() {
+    if (!canActPB2) return;
+    const note = prompt("Tolak di tahap PB2? Tambahkan alasan (opsional):", "");
+    if (note === null) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const url = `${API_BASE}/api/approvals/${form.backendId}/pb2/return`;
+      await apiJson<any>(url, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      });
+
+      try {
+        const fresh = await apiJson<any>(
+          `${API_BASE}/api/requests/${form.backendId}`,
+          { method: "GET" }
+        );
+        setForm(transformToApproval(fresh?.data ?? fresh));
+      } catch {
+        setForm((f) => ({ ...f, status: "Rejected", tahap: "Selesai" }));
+      }
+      alert("Ditolak oleh PB2.");
+    } catch (e: any) {
+      setError(e.message || "Gagal reject PB2.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ====== ACTION BO ======
+  async function handleApproveBO() {
+    if (!canActBO) return;
+    const ok = confirm("Setujui di tahap BO?");
+    if (!ok) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const url = `${API_BASE}/api/approvals/${form.backendId}/bo/approve`;
+      await apiJson<any>(url, { method: "POST" });
+
+      try {
+        const fresh = await apiJson<any>(
+          `${API_BASE}/api/requests/${form.backendId}`,
+          { method: "GET" }
+        );
+        setForm(transformToApproval(fresh?.data ?? fresh));
+      } catch {
+        // fallback: selesai approved
+        setForm((f) => ({ ...f, tahap: "Selesai", status: "Approved" }));
+      }
+      alert("Disetujui oleh BO.");
+    } catch (e: any) {
+      setError(e.message || "Gagal approve BO.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRejectBO() {
+    if (!canActBO) return;
+    const note = prompt("Tolak di tahap BO? Tambahkan alasan (opsional):", "");
+    if (note === null) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const url = `${API_BASE}/api/approvals/${form.backendId}/bo/reject`;
+      await apiJson<any>(url, {
+        method: "POST",
+        body: JSON.stringify({ note }),
+      });
+
+      try {
+        const fresh = await apiJson<any>(
+          `${API_BASE}/api/requests/${form.backendId}`,
+          { method: "GET" }
+        );
+        setForm(transformToApproval(fresh?.data ?? fresh));
+      } catch {
+        setForm((f) => ({ ...f, status: "Rejected", tahap: "Selesai" }));
+      }
+      alert("Ditolak oleh BO.");
+    } catch (e: any) {
+      setError(e.message || "Gagal reject BO.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* HEADER */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-zinc-900">{form.id}</h2>
+          <p className="text-xs text-zinc-500">
+            Backend ID: {String(form.backendId)}
+          </p>
+          <p className="text-sm text-zinc-500">{form.perusahaan}</p>
+        </div>
+        <div className="flex gap-2">
+          {canEditApplicant && !editMode && (
+            <button
+              onClick={() => setEditMode(true)}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
+            >
+              Edit
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+
+      {/* Riwayat / Timeline */}
+
+      {error && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
+
+      {/* BODY */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Editable fields selaras backend */}
+        <Field
+          label="Judul"
+          value={form.title ?? ""}
+          editable={canEditApplicant && editMode}
+          onChange={(v) => setField("title", v)}
+        />
+        <Field
+          label="Currency"
+          value={form.currency ?? "IDR"}
+          editable={canEditApplicant && editMode}
+          onChange={(v) => setField("currency", v)}
+        />
+        <Field
+          label="Pre-Approval Ref"
+          value={form.preApprovalRef ?? ""}
+          editable={canEditApplicant && editMode}
+          onChange={(v) => setField("preApprovalRef", v)}
+        />
+        <Field
+          label="Nominal"
+          value={String(form.nominal)}
+          type="number"
+          editable={canEditApplicant && editMode}
+          onChange={(v) => setField("nominal", Number(v))}
+        />
+        <div className="col-span-2">
+          <Field
+            label="Deskripsi"
+            value={form.description ?? ""}
+            editable={canEditApplicant && editMode}
+            onChange={(v) => setField("description", v)}
+          />
+        </div>
+
+        {/* Readonly info */}
+        <Info label="Pemohon" value={form.pemohon} />
+        <Info label="Perusahaan" value={form.perusahaan} />
+        <Info label="Tanggal Pengajuan" value={form.tanggal} />
+        <Info label="Tahap Saat Ini" value={form.tahap} />
+        <Info label="Status" value={form.status} />
+      </div>
+
+      <HistoryTimeline form={form} />
+
+      {/* FOOTER ACTIONS */}
+      <div className="flex flex-wrap justify-end gap-2">
+        {canEditApplicant && editMode && (
+          <>
+            <button
+              disabled={saving}
+              onClick={handleSave}
+              className="rounded-lg px-3 py-2 text-sm text-white shadow-sm disabled:opacity-60"
+              style={{ backgroundColor: "#272465" }}
+            >
+              {saving ? "Menyimpan..." : "Simpan Perubahan"}
+            </button>
+            <button
+              disabled={saving}
+              onClick={() => {
+                setEditMode(false);
+                setError(null);
+              }}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50"
+            >
+              Batal
+            </button>
+          </>
+        )}
+
+        {canEditApplicant && !editMode && (
+          <button
+            disabled={submitting}
+            onClick={handleSubmit}
+            className="rounded-lg px-3 py-2 text-sm text-white shadow-sm hover:brightness-110 disabled:opacity-60"
+            style={{ backgroundColor: "#16a34a" }}
+          >
+            {submitting ? "Mengirim..." : "Submit"}
+          </button>
+        )}
+
+        {canActPB1 && !editMode && (
+          <>
+            <button
+              disabled={saving}
+              onClick={handleApprovePB1}
+              className="rounded-lg px-3 py-2 text-sm text-white shadow-sm hover:brightness-110 disabled:opacity-60"
+              style={{ backgroundColor: "#272465" }}
+            >
+              {saving ? "Memproses..." : "Setujui (PB1)"}
+            </button>
+            <button
+              disabled={saving}
+              onClick={handleRejectPB1}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50"
+            >
+              Tolak (PB1)
+            </button>
+          </>
+        )}
+
+        {canActPB2 && !editMode && (
+          <>
+            <button
+              disabled={saving}
+              onClick={handleApprovePB2}
+              className="rounded-lg px-3 py-2 text-sm text-white shadow-sm hover:brightness-110 disabled:opacity-60"
+              style={{ backgroundColor: "#272465" }}
+            >
+              {saving ? "Memproses..." : "Setujui (PB2)"}
+            </button>
+            <button
+              disabled={saving}
+              onClick={handleRejectPB2}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50"
+            >
+              Tolak (PB2)
+            </button>
+          </>
+        )}
+
+        {canActBO && !editMode && (
+          <>
+            <button
+              disabled={saving}
+              onClick={handleApproveBO}
+              className="rounded-lg px-3 py-2 text-sm text-white shadow-sm hover:brightness-110 disabled:opacity-60"
+              style={{ backgroundColor: "#272465" }}
+            >
+              {saving ? "Memproses..." : "Setujui (BO)"}
+            </button>
+            <button
+              disabled={saving}
+              onClick={handleRejectBO}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50"
+            >
+              Tolak (BO)
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================
+   History Timeline (Simulation)
+========================= */
+function HistoryTimeline({ form }: { form: ApprovalForm }) {
+  // Simulasi langkah berdasarkan tahap & status saat ini.
+  // Kalau nanti backend kirim Steps lengkap, tinggal ganti sumber datanya.
+  const items: Array<{
+    label: string;
+    tone: "info" | "success" | "warn" | "danger";
+  }> = [];
+
+  items.push({ label: `Dibuat oleh ${form.pemohon}`, tone: "info" });
+
+  if (form.tahap !== "Pemohon") {
+    items.push({ label: "Diajukan ke PB1", tone: "info" });
+  }
+  if (
+    ["Pihak 2", "BO", "Selesai"].includes(form.tahap) &&
+    form.status !== "Rejected"
+  ) {
+    items.push({ label: "Disetujui PB1", tone: "success" });
+  }
+  if (["BO", "Selesai"].includes(form.tahap) && form.status !== "Rejected") {
+    items.push({ label: "Disetujui PB2", tone: "success" });
+  }
+  if (form.status === "Approved") {
+    items.push({ label: "Final Approved (BO)", tone: "success" });
+  }
+  if (form.status === "Rejected") {
+    items.push({ label: "Perlu Revisi (Needs Revision)", tone: "danger" });
+  }
+
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+      <div className="mb-3 text-sm font-semibold text-zinc-800">
+        Riwayat Proses
+      </div>
+      <ul className="space-y-3">
+        {items.map((e, i) => (
+          <li key={i} className="flex items-start gap-3">
+            <span
+              className={
+                {
+                  info: "bg-zinc-300",
+                  success: "bg-green-500",
+                  warn: "bg-amber-500",
+                  danger: "bg-red-500",
+                }[e.tone] + " mt-1 inline-block h-2.5 w-2.5 rounded-full"
+              }
+            />
+            <div className="text-sm text-zinc-900">{e.label}</div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* =========================
+   Small Components
+========================= */
 function StageBadge({ stage }: { stage: ApprovalStage }) {
   const map: Record<ApprovalStage, string> = {
     Pemohon: "bg-sky-50 text-sky-700 border-sky-200",
@@ -228,83 +909,15 @@ function StatusBadge({ status }: { status: ApprovalStatus }) {
     Draft: "bg-zinc-100 text-zinc-700 border-zinc-200",
     Submitted: "bg-blue-50 text-blue-700 border-blue-200",
     "In Review": "bg-amber-50 text-amber-800 border-amber-200",
-    Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Rejected: "bg-rose-50 text-rose-700 border-rose-200",
+    Approved: "bg-green-100 text-green-800 border-green-300", // lebih terang hijau untuk final approved
+    Rejected: "bg-red-100 text-red-800 border-red-300", // merah jelas untuk need_revision/reject
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${map[status]}`}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${map[status]}`}
     >
       {status}
     </span>
-  );
-}
-
-function DetailDrawer({
-  form,
-  onClose,
-}: {
-  form: ApprovalForm;
-  onClose: () => void;
-}) {
-  const { user } = useAuth();
-
-  const canApprove =
-    (user?.role === "PIHAK1" && form.tahap === "Pihak 1") ||
-    (user?.role === "PIHAK2" && form.tahap === "Pihak 2") ||
-    (user?.role === "BO" && form.tahap === "BO") ||
-    user?.role === "ADMIN";
-
-  const canEdit = user?.role === "PEMOHON" && form.tahap === "Pemohon";
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-zinc-900">{form.id}</h2>
-          <p className="text-sm text-zinc-500">{form.perusahaan}</p>
-        </div>
-        <button
-          onClick={onClose}
-          className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
-        >
-          Tutup
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Info label="Pemohon" value={form.pemohon} />
-        <Info label="Perusahaan" value={form.perusahaan} />
-        <Info label="Tanggal Pengajuan" value={form.tanggal} />
-        <Info
-          label="Nominal"
-          value={`IDR ${form.nominal.toLocaleString("id-ID")}`}
-        />
-        <Info label="Tahap Saat Ini" value={form.tahap} />
-        <Info label="Status" value={form.status} />
-      </div>
-
-      <div className="flex justify-end gap-2">
-        {canEdit && (
-          <button className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50">
-            Edit Form
-          </button>
-        )}
-        {canApprove && (
-          <>
-            <button className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">
-              Tolak
-            </button>
-            <button
-              className="rounded-lg px-3 py-2 text-sm text-white shadow-sm hover:brightness-110"
-              style={{ backgroundColor: "#272465" }}
-            >
-              Setujui
-            </button>
-          </>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -341,6 +954,36 @@ function Info({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border border-zinc-200 p-3">
       <div className="text-xs text-zinc-500">{label}</div>
       <div className="mt-0.5 text-sm text-zinc-900">{value}</div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  editable,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange?: (v: string) => void;
+  editable?: boolean;
+  type?: "text" | "number" | "date";
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-200 p-3">
+      <div className="text-xs text-zinc-500">{label}</div>
+      {editable ? (
+        <input
+          type={type}
+          value={value ?? ""}
+          onChange={(e) => onChange?.(e.target.value)}
+          className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+        />
+      ) : (
+        <div className="mt-0.5 text-sm text-zinc-900">{value ?? "—"}</div>
+      )}
     </div>
   );
 }

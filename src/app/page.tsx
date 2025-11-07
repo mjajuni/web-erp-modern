@@ -2,6 +2,7 @@
 
 import BackgroundPremium from "@/components/BackgroundPremium";
 import Footer from "@/components/Footer";
+import LoadingButton from "@/components/LoadingButton";
 import LoadingOverlay from "@/components/LoadingOverlay";
 import MagicBento from "@/components/MagicBento";
 import TextType from "@/components/TextType";
@@ -9,7 +10,6 @@ import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import LoadingButton from "@/components/LoadingButton";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);

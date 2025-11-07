@@ -3,39 +3,43 @@
 import { useState } from "react";
 import { Eye, EyeOff, Mail, Lock, LogIn } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string>("");
+
+  const sp = useSearchParams();
+  const redirect = sp.get("redirect") || "/dashboard/overview";
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setLoading(true);
+    setErr("");
+
     const form = new FormData(e.currentTarget);
     const email = form.get("email");
     const password = form.get("password");
 
-    setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8080/api/auth/login`, {
+      // ⬅️ Arahkan ke API proxy Next.js (server yang set cookie httpOnly)
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      console.log("API Base:", process.env.NEXT_PUBLIC_API_BASE);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || "Login gagal");
+      }
 
-      if (!res.ok) throw new Error("Login gagal");
-
-      const data = await res.json();
-
-      // Simpan token dan user
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      // redirect ke dashboard
-      window.location.href = "/dashboard";
-    } catch (err) {
-      alert("Email atau password salah / server error.");
+      // Cookie httpOnly 'token' & (opsional) 'role' sudah diset oleh server
+      // → Tinggal redirect; middleware akan mengizinkan akses
+      window.location.href = redirect;
+    } catch (e: any) {
+      setErr(e?.message || "Email atau password salah / server error.");
     } finally {
       setLoading(false);
     }
@@ -65,9 +69,10 @@ export default function LoginPage() {
         </header>
 
         <h1 className="text-2xl font-semibold mb-1 text-zinc-900">Masuk</h1>
-        <p className="text-sm text-zinc-500 mb-6">
+        <p className="text-sm text-zinc-500 mb-2">
           Gunakan akun perusahaan Anda.
         </p>
+        {err && <p className="mb-4 text-sm text-red-600">{err}</p>}
 
         <form onSubmit={onSubmit} className="space-y-4">
           {/* Email */}
@@ -101,6 +106,9 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setShow(!show)}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-2 hover:bg-zinc-100 active:scale-95"
+                aria-label={
+                  show ? "Sembunyikan password" : "Tampilkan password"
+                }
               >
                 {show ? (
                   <EyeOff className="size-4 text-zinc-500" />
@@ -128,7 +136,7 @@ export default function LoginPage() {
           {/* Button */}
           <button
             disabled={loading}
-            className="w-full rounded-xl bg-[#272465] py-3 text-sm font-medium text-white shadow-sm hover:brightness-110 active:scale-[0.98] transition"
+            className="w-full rounded-xl bg-[#272465] py-3 text-sm font-medium text-white shadow-sm hover:brightness-110 active:scale-[0.98] transition disabled:opacity-60"
           >
             <div className="flex items-center justify-center gap-2">
               <LogIn className="size-4" />
@@ -141,8 +149,8 @@ export default function LoginPage() {
         <div className="mt-6 rounded-xl border border-dashed border-zinc-200 bg-white/60 p-3 text-xs text-zinc-600">
           <p className="font-medium">Akun demo</p>
           <p>
-            ani@app.test, budi@pb1.test, cici@pb2.test, beni@bo.test —
-            Password@123
+            ani@app.test, (PB1)budi@auth.test, (PB2)citra@auth.test,
+            (BO)dodi@auth.test, password=123
           </p>
         </div>
 
